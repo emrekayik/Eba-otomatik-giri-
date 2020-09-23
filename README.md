@@ -3,6 +3,8 @@ Eba giriş paneline her defasında tc kimlik no ve şifreyi girmemek için oluş
 
 
 https://www.tampermonkey.net/
+
+
 1- Öncelikle yukarıdaki linkten Tampermonkey eklentisini tarayıcımıza kuruyoruz.
 
 2- Tampermonkey kullanıcı betiği sayfasından yeni betik ekleme ekranına geliyoruz.
