@@ -1,0 +1,18 @@
+// ==UserScript==
+// @name         EbaEK
+// @namespace    http://emrekayik.tk
+// @version      0.3
+// @description  Eba otomatik giris
+// @author       Emre KAYIK
+// @match        https://giris.eba.gov.tr/EBA_GIRIS/student.jsp
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    $('#tckn').attr('value', 'tc kimlik no buraya yazılacak.');
+    $('#password').attr('value', 'şifre buraya yazılacak');
+    $('.nl-form-send-btn').click();
+    console.log('Emre KAYIK tarafından geliştirilmiştir.');
+})();
