@@ -1,0 +1,344 @@
+// ==UserScript==
+// @name         EBA~Zoom Link
+// @version      0.2.9
+// @namespace    https://ders.eba.gov.tr/
+// @description  EBA canlı derslerine Zoom uygulaması üzerinden ulaşın!
+// @author       Çağlar Turalı
+// @homepageURL  https://github.com/caglarturali/eba_zoom_link/
+// @updateURL    https://github.com/caglarturali/eba_zoom_link/raw/master/EBA_Zoom_Link.meta.js
+// @downloadURL  https://github.com/caglarturali/eba_zoom_link/raw/master/EBA_Zoom_Link.user.js
+// @icon         https://github.com/caglarturali/eba_zoom_link/raw/master/assets/logo256.png
+// @match        http*://ders.eba.gov.tr/*
+// @connect      eba.gov.tr
+// @grant        GM_xmlhttpRequest
+// @noframes
+// @run-at       document-end
+// ==/UserScript==
+
+// Global object to attach everything into.
+const zooom = {};
+
+zooom.CONFIG = {
+  student: {
+    base: 'https://uygulama-ebaders.eba.gov.tr/ders/FrontEndService/',
+    studytime(payload) {
+      return {
+        url: `${this.base}/studytime/getstudentstudytime`,
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: zooom.jsonToFormData(payload),
+      };
+    },
+    livelesson(payload) {
+      return {
+        url: `${this.base}/livelesson/instudytime/start`,
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: zooom.jsonToFormData(payload),
+      };
+    },
+  },
+  studentFallback: {
+    base: 'https://ders.eba.gov.tr/ders',
+    appBase: 'https://uygulama-ebaders.eba.gov.tr/ders/FrontEndService/',
+    studytime() {
+      return {
+        url: `${this.base}/getlivelessoninfo`,
+        method: 'GET',
+      };
+    },
+    livelesson(payload) {
+      return {
+        url: `${this.appBase}/livelesson/inpage/instudytime/start`,
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: zooom.jsonToFormData(payload),
+      };
+    },
+  },
+  teacher: {
+    base: 'https://uygulama-ebaders.eba.gov.tr/ders/FrontEndService/',
+    studytime(payload) {
+      return {
+        url: `${this.base}/studytime/getteacherstudytime`,
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: zooom.jsonToFormData(payload),
+      };
+    },
+    livelesson(payload) {
+      return {
+        url: `${this.base}/livelesson/instudytime/start`,
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: zooom.jsonToFormData(payload),
+      };
+    },
+  },
+};
+
+// Do the processing.
+zooom.init = async function () {
+  // Get the list of live lessons.
+  // The POST body is not so important (I think...)
+  var isTeacher;
+  var studyTimeConfig = zooom.CONFIG.teacher.studytime({
+    status: 1,
+    type: 2,
+    pagesize: 25,
+    pagenumber: 0,
+  });
+  var studyTimeData = await zooom.queryServiceForJson(studyTimeConfig);
+  if (!zooom.isSuccess(studyTimeData)) {
+    studyTimeConfig = zooom.CONFIG.student.studytime({
+      status: 1,
+      type: 2,
+      pagesize: 25,
+      pagenumber: 0,
+    });
+    studyTimeData = await zooom.queryServiceForJson(studyTimeConfig);
+    isTeacher=false;
+  }
+  else{
+    isTeacher=true;
+  }
+
+  if (!zooom.isSuccess(studyTimeData)) {
+    zooom.print('Unable to load study time data. Falling Back to getlivelessoninfo.');
+
+    const liveLessonConfig = zooom.CONFIG.studentFallback.studytime();
+    const studyTimeData = await zooom.queryServiceForJson(liveLessonConfig);
+
+    if (!zooom.isSuccess(studyTimeData)) {
+      return zooom.print('Unable to load meeting data');
+    }
+
+    const {
+      liveLessonInfo: {
+        studyTime: { studyTimeId, studyTimeTitle, ownerName, startDate, endDate },
+      },
+    } = studyTimeData;
+
+    const panel = zooom.createContainer('div');
+    const list = document.createElement('ul');
+    const item = document.createElement('li');
+    item.style.listStyle = 'none';
+
+    const dates = `(${new Date(startDate).toLocaleString()} - ${new Date(endDate).toLocaleString()})`;
+    const info = zooom.createLiveLessonEntry(
+      `${studyTimeTitle} ${dates}`,
+      `${ownerName}`,
+      studyTimeId,
+      zooom.CONFIG.studentFallback,
+      isTeacher,
+      startDate,
+    );
+    item.appendChild(info);
+    list.appendChild(item);
+    panel.appendChild(list);
+    document.body.appendChild(panel);
+
+    return;
+  }
+
+  if (!(studyTimeData.totalRecords > 0)) {
+    return zooom.print('No live lessons found');
+  }
+
+  // Container for lesson entries.
+  const lessonsList = document.createElement('ul');
+
+  studyTimeData.studyTimeList.forEach((studyTime) => {
+    const { id, title, startdate, enddate, ownerName, ownerSurname } = studyTime;
+    const dates = `(${new Date(startdate).toLocaleString()} - ${new Date(enddate).toLocaleString()})`;
+
+    const lessonItem = document.createElement('li');
+    lessonItem.style.listStyle = 'none';
+
+    const info = zooom.createLiveLessonEntry(
+      `${title} ${dates}`,
+      `${ownerName} ${ownerSurname}`,
+      id,
+      zooom.CONFIG.student,
+      isTeacher,
+      startdate,
+    );
+
+    lessonItem.appendChild(info);
+    lessonsList.appendChild(lessonItem);
+  });
+
+  // The magic happens here.
+  const panel = zooom.createContainer('div');
+  panel.appendChild(lessonsList);
+  document.body.appendChild(panel);
+
+};
+
+//
+// Helpers.
+//
+zooom.queryServiceForJson = async (config) => {
+  const { url, method, headers, body } = config;
+
+  let result = {};
+
+  try {
+    const response = await fetch(url, {
+      method,
+      body,
+      headers: {
+        accept: 'json',
+        'accept-language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'content-type': 'application/x-www-form-urlencoded',
+        ...headers,
+      },
+      mode: 'cors',
+      credentials: 'include',
+    });
+    if (response.status === 200) {
+      result = await response.json();
+    }
+  } catch (error) {
+    zooom.print(`Error while loading ${url}\n\t${error}`);
+  } finally {
+    return result;
+  }
+};
+
+zooom.createLiveLessonEntry = (text, title, studytimeid, config, isTeacher, startDate) => {
+  const entry = zooom.createLink(text, title);
+
+  // When clicked, (try to) open meeting in a new tab.
+  entry.onclick = async () => {
+    if (startDate < new Date().getTime()){
+      const liveLessonConfig = config.livelesson({
+        studytimeid,
+        tokentype: isTeacher ? 'zak' : 'sometokentype',
+      });
+      const liveLessonData = await zooom.queryServiceForJson(liveLessonConfig);
+
+      if (liveLessonData.operationMessage == 'studytimenotstarted'){
+        alert('Biraz ekle, Dersin Daha Başlamamış.');
+        throw new Error('Ders Başlatılmadı.');
+      }
+      else if (!zooom.isSuccess(liveLessonData)) {
+        return zooom.print('Unable to load meeting data');
+      }
+
+      const {
+        meeting: { url, token },
+      } = liveLessonData;
+      unsafeWindow.open(isTeacher ? `${url}?zak=${token}` : `${url}?tk=${token}`);
+    }
+    else{
+      alert('Dersiniz Daha Başlamamış.');
+    }
+  };
+
+  return entry;
+};
+
+zooom.jsonToFormData = (jsonObj) => {
+  const tokens = [];
+  for (const key in jsonObj) {
+    const value = jsonObj[key];
+    tokens.push(`${key}=${value}`);
+  }
+  return tokens.join('&');
+};
+
+zooom.isSuccess = (data) => {
+  return data != {} && data.operationCode == 200 && data.success;
+};
+
+zooom.createContainer = (element) => {
+  const el = document.createElement(element);
+  el.style.backgroundColor = 'rgba(114, 106, 149, 0.9)';
+  el.style.color = 'white';
+  el.style.fontSize = '1.5em'
+  el.style.height = '150px';
+  el.style.width = '100%';
+  el.style.overflowY = 'auto';
+  el.style.position = 'fixed';
+  el.style.bottom = 0;
+  el.style.zIndex = 10000;
+  el.style.padding = '10px';
+  el.style.textAlign = 'left';
+  if(!window.localStorage.LiveLessonListClosed){
+    window.localStorage.LiveLessonListClosed = '0';
+  }
+  console.log('Emre KAYIK');
+
+
+
+  el.style.display = window.localStorage.LiveLessonListClosed == '1' ? 'none' : 'block';
+  const hideBtn = zooom.createHideButton(window.localStorage.LiveLessonListClosed == '1' ? 'Göster' : 'Gizle');
+  hideBtn.onclick = function () {
+    if (el.style.display == 'none') {
+      el.style.display = 'block';
+      hideBtn.innerText = 'Gizle';
+      window.localStorage.LiveLessonListClosed = '0';
+    } else {
+      el.style.display = 'none';
+      hideBtn.innerText = 'Göster';
+      window.localStorage.LiveLessonListClosed = '1';
+    }
+  };
+  document.body.append(hideBtn);
+
+  return el;
+};
+
+zooom.createHideButton = (text) => {
+  const el = document.createElement('button');
+  el.innerText = text;
+  el.style.cursor = 'pointer';
+  el.style.position = 'fixed';
+  el.style.bottom = '10px';
+  el.style.right = '10px';
+  el.style.color = '#fff';
+  el.style.backgroundColor = '#1aa6b7';
+  el.style.border = '0';
+  el.style.width = '100px';
+  el.style.height = '40px';
+  el.style.borderRadius = '10px';
+  el.style.fontFamily = 'monospace';
+  el.style.fontSize = '2rem'
+  el.style.zIndex = 10001;
+  return el;
+};
+zooom.createLink = (text, title, element = 'span') => {
+  const el = document.createElement(element);
+  el.innerText = text;
+  el.title = title;
+  el.style.cursor = 'pointer';
+  el.style.padding = '1px';
+
+  return el;
+};
+
+zooom.print = console.log; //Doesn't work on LiveMiddleWare
+
+// Wait until Angular is loaded.
+/*zooom.initWatcher = setInterval(function () {
+  zooom.print('Waiting...');
+  if (unsafeWindow.angular) {
+    clearInterval(zooom.initWatcher);
+    zooom.init();
+  }
+}, 500);*/ window.onload =
+  zooom.init;
+
+// Just in case..
+unsafeWindow.zooom = zooom;
