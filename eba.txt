@@ -2,9 +2,9 @@
 // @name         EBA~Zoom Link
 // @version      0.2.9
 // @namespace    https://ders.eba.gov.tr/
-// @description  EBA canlı derslerine Zoom uygulaması üzerinden ulaşın!
-// @author       Çağlar Turalı
-// @homepageURL  https://github.com/caglarturali/eba_zoom_link/
+// @description  EBA canlı derslerine Zoom uygulaması üzerinden ulaşın! https://github.com/caglarturali/eba_zoom_link/ Buradan geliştirilmiştir.
+// @author       Emre KAYIK
+// @homepageURL  https://github.com/emrekayik/Eba-otomatik-giris-ve-zoom-uzerinden-giris
 // @updateURL    https://github.com/caglarturali/eba_zoom_link/raw/master/EBA_Zoom_Link.meta.js
 // @downloadURL  https://github.com/caglarturali/eba_zoom_link/raw/master/EBA_Zoom_Link.user.js
 // @icon         https://github.com/caglarturali/eba_zoom_link/raw/master/assets/logo256.png
